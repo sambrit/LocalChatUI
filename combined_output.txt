@@ -1,0 +1,246 @@
+=== File: server.py ===
+Name: server
+Extension: .py
+Content:
+import os
+import openai
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+
+# Initialize FastAPI
+app = FastAPI()
+
+# Add CORS middleware to allow the frontend to access the backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:8080"],  # Frontend address
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Set OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Request model for chat endpoint
+class ChatRequest(BaseModel):
+    prompt: str
+
+@app.post("/chat/")
+def chat(request: ChatRequest):
+    """
+    Endpoint to interact with the AI model.
+    """
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": request.prompt}]
+        )
+        return {"response": response.choices[0].message["content"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error during AI response: {str(e)}")
+
+
+=== File: index.html ===
+Name: index
+Extension: .html
+Content:
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Assistant</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #chat-container {
+            width: 60%;
+            margin: 0 auto;
+        }
+        #chat-log {
+            border: 1px solid #ddd;
+            padding: 10px;
+            height: 300px;
+            overflow-y: scroll;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+        }
+        #input-container {
+            display: flex;
+        }
+        #user-input {
+            flex-grow: 1;
+            padding: 10px;
+        }
+        button {
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <h1>AI Chat Assistant</h1>
+        <div id="chat-log"></div>
+        <div id="input-container">
+            <input type="text" id="user-input" placeholder="Type your message here...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+    <script>
+        const chatLog = document.getElementById("chat-log");
+
+        async function sendMessage() {
+            const userInput = document.getElementById("user-input").value;
+            if (!userInput.trim()) return;
+
+            appendToChatLog("You: " + userInput);
+            document.getElementById("user-input").value = "";
+
+            try {
+                const response = await fetch("http://127.0.0.1:8000/chat/", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ prompt: userInput }),
+                });
+
+                const data = await response.json();
+                appendToChatLog("AI: " + data.response);
+            } catch (error) {
+                appendToChatLog("Error: Could not connect to server.");
+            }
+        }
+
+        function appendToChatLog(message) {
+            const newMessage = document.createElement("div");
+            newMessage.textContent = message;
+            chatLog.appendChild(newMessage);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+    </script>
+</body>
+</html>
+
+
+=== File: .DS_Store ===
+Name: .DS_Store
+Extension: 
+Content:
+Error reading file: 'utf-8' codec can't decode byte 0xd8 in position 1077: invalid continuation byte
+
+=== File: combined_output.txt ===
+Name: combined_output
+Extension: .txt
+Content:
+
+
+=== File: start_server.sh ===
+Name: start_server
+Extension: .sh
+Content:
+#!/bin/bash
+# Kill any process using port 8000
+lsof -t -i:8000 | xargs kill -9
+# Start the server
+uvicorn server:app --reload
+
+
+=== File: README.md ===
+Name: README
+Extension: .md
+Content:
+# suvansilwal.github.io
+
+=== File: script.js ===
+Name: script
+Extension: .js
+Content:
+document.getElementById("send-btn").addEventListener("click", async () => {
+    const userInput = document.getElementById("user-input").value;
+    const responseContainer = document.getElementById("response-container");
+
+    // Check for empty input
+    if (!userInput.trim()) {
+        responseContainer.innerText = "Please enter a message.";
+        return;
+    }
+
+    responseContainer.innerText = "Loading..."; // Display loading state
+
+    try {
+        const response = await fetch("http://127.0.0.1:8000/respond", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ text: userInput })
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to fetch response from server.");
+        }
+
+        const data = await response.json();
+        responseContainer.innerText = data.response;
+    } catch (error) {
+        console.error(error);
+        responseContainer.innerText = "Error: Unable to connect to the AI server.";
+    }
+});
+
+
+=== File: combiner.py ===
+Name: combiner
+Extension: .py
+Content:
+import os
+
+def combine_files_to_text(output_file="combined_output.txt"):
+    # Open the output file in write mode
+    with open(output_file, "w", encoding="utf-8") as outfile:
+        # Iterate over all files in the current directory
+        for file_name in os.listdir("."):
+            # Ensure we process only files (not directories)
+            if os.path.isfile(file_name):
+                # Extract file name and extension
+                name, extension = os.path.splitext(file_name)
+                
+                # Read the file content
+                try:
+                    with open(file_name, "r", encoding="utf-8") as infile:
+                        content = infile.read()
+                except Exception as e:
+                    content = f"Error reading file: {e}"
+
+                # Write the file details and content to the output file
+                outfile.write(f"=== File: {file_name} ===\n")
+                outfile.write(f"Name: {name}\n")
+                outfile.write(f"Extension: {extension}\n")
+                outfile.write("Content:\n")
+                outfile.write(content)
+                outfile.write("\n\n")
+    print(f"All files have been combined into {output_file}")
+
+# Run the function
+combine_files_to_text()
+
+
+=== File: test_transformers.py ===
+Name: test_transformers
+Extension: .py
+Content:
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+model_name = "gpt2"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(model_name)
+
+inputs = tokenizer.encode("Hello, my name is", return_tensors='pt')
+outputs = model.generate(inputs, max_length=20, do_sample=True)
+print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+
+
+
